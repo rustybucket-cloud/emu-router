@@ -1,0 +1,21 @@
+{
+  "name": "emu-router",
+  "version": "0.1.0",
+  "description": "Routes Expo dev servers to a pool of Android emulators",
+  "type": "module",
+  "bin": {
+    "emu-router": "bin/emu-router.js"
+  },
+  "scripts": {
+    "daemon": "node --disable-warning=ExperimentalWarning src/cli.ts daemon",
+    "typecheck": "tsc"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.19.0",
+    "typescript": "^7.0.2"
+  }
+}

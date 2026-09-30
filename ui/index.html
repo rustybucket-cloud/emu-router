@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emu Router</title>
+<style>
+  :root {
+    --bg: #f4f3ef;
+    --panel: #ffffff;
+    --ink: #1c1d1f;
+    --muted: #6d6f73;
+    --line: #e2e0da;
+    --soft: #efede7;
+    --accent: #3b5bdb;
+    --st-stopped: #a3a5a8;
+    --st-creating: #c98a12;
+    --st-booting: #d9a01a;
+    --st-idle: #1f9d6b;
+    --st-leased: #3b5bdb;
+    --st-stopping: #8a8c90;
+    --st-error: #d23f3f;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121315; --panel: #1b1c1f; --ink: #e8e8e6; --muted: #8f9195; --line: #2b2d31; --soft: #232428;
+      --accent: #7b93ff; --st-stopped: #5d6064; --st-leased: #7b93ff; --st-idle: #34c38f; --st-error: #ff6b6b;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121315; --panel: #1b1c1f; --ink: #e8e8e6; --muted: #8f9195; --line: #2b2d31; --soft: #232428;
+    --accent: #7b93ff; --st-stopped: #5d6064; --st-leased: #7b93ff; --st-idle: #34c38f; --st-error: #ff6b6b;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 28px 16px 60px; }
+  button, input, select { font: inherit; color: inherit; }
+
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+  .brand { font: 600 20px var(--mono); letter-spacing: -0.02em; display: flex; align-items: center; gap: 10px; }
+  .conn { width: 8px; height: 8px; border-radius: 50%; background: var(--st-stopped); }
+  .conn.live { background: var(--st-idle); box-shadow: 0 0 0 4px color-mix(in srgb, var(--st-idle) 20%, transparent); }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+  .cap { display: flex; align-items: center; gap: 14px; }
+  .cap-count { font: 600 28px var(--mono); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .cap-count small { color: var(--muted); font-size: 16px; font-weight: 500; }
+  .cap-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .stepper { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); overflow: hidden; }
+  .stepper button { border: 0; background: none; width: 34px; height: 32px; cursor: pointer; font-size: 16px; }
+  .stepper button:hover:not(:disabled) { background: var(--soft); }
+  .stepper button:disabled { opacity: 0.35; cursor: default; }
+  .stepper span { min-width: 34px; display: grid; place-items: center; font: 600 14px var(--mono); border-inline: 1px solid var(--line); }
+
+  .slots { display: flex; gap: 4px; margin-bottom: 22px; }
+  .slot { flex: 1; height: 6px; border-radius: 3px; background: var(--line); transition: background 0.3s; }
+  .slot.over { outline: 1px dashed var(--st-error); outline-offset: 1px; }
+
+  .banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; margin-bottom: 18px;
+    border: 1px solid color-mix(in srgb, var(--st-error) 40%, var(--line)); background: color-mix(in srgb, var(--st-error) 8%, var(--panel));
+    border-radius: 10px; color: var(--st-error); }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center; }
+
+  .cards { display: grid; gap: 10px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 12px; position: relative; overflow: hidden; }
+  .card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--status); }
+  .card.excluded { opacity: 0.6; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .row + .row { margin-top: 6px; }
+  .name { font: 600 15px var(--mono); overflow-wrap: anywhere; }
+  .tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--soft); color: var(--muted); }
+  .status { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; color: var(--status); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--status); }
+  .pulse .dot { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+  .since { color: var(--muted); font: 12px var(--mono); font-variant-numeric: tabular-nums; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .meta b { color: var(--ink); font-weight: 600; }
+  .mono { font-family: var(--mono); font-size: 12.5px; }
+  .err { color: var(--st-error); font-size: 13px; }
+  .actions { display: flex; gap: 6px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 7px; padding: 4px 11px; font-size: 13px; cursor: pointer; }
+  .btn:hover:not(:disabled) { background: var(--soft); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.danger:hover:not(:disabled) { color: var(--st-error); border-color: var(--st-error); }
+  .toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); cursor: pointer; user-select: none; }
+  .switch { width: 28px; height: 16px; border-radius: 999px; background: var(--line); position: relative; transition: background 0.2s; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+  .toggle input { display: none; }
+  .toggle input:checked + .switch { background: var(--st-idle); }
+  .toggle input:checked + .switch::after { transform: translateX(12px); }
+
+  aside { display: grid; gap: 20px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .queue-item { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); }
+  .queue-item:first-child { border-top: 0; padding-top: 0; }
+  .empty { color: var(--muted); font-size: 13px; }
+  label.field { display: grid; gap: 5px; font-size: 13px; margin-bottom: 12px; }
+  label.field span { color: var(--muted); font-size: 12px; }
+  .field select, .field input[type=number] { border: 1px solid var(--line); background: var(--bg); border-radius: 7px; padding: 6px 8px; width: 100%; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 12px; cursor: pointer; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand"><span class="conn" id="conn"></span>emu-router</div>
+      <div class="sub" id="summary">Connecting to daemon…</div>
+    </div>
+    <div class="cap">
+      <div>
+        <div class="cap-label">Running</div>
+        <div class="cap-count" id="count">–</div>
+      </div>
+      <div>
+        <div class="cap-label">Cap</div>
+        <div class="stepper">
+          <button id="capDown" aria-label="Lower cap">−</button>
+          <span id="capValue">–</span>
+          <button id="capUp" aria-label="Raise cap">+</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="slots" id="slots"></div>
+  <div id="banner"></div>
+
+  <div class="layout">
+    <section>
+      <h2>Emulators <button class="btn" id="addBtn">+ New emulator</button></h2>
+      <div class="cards" id="cards"></div>
+    </section>
+    <aside>
+      <div>
+        <h2>Queue</h2>
+        <div class="panel" id="queue"></div>
+      </div>
+      <div>
+        <h2>Settings</h2>
+        <div class="panel">
+          <label class="field"><span>Template for new emulators</span><select id="template"></select></label>
+          <label class="field"><span>Shut down unused emulators after (minutes, 0 = never)</span><input id="idle" type="number" min="0" step="1"></label>
+          <label class="check"><input id="headless" type="checkbox"> Run headless (no window)</label>
+          <div class="empty">Settings apply to emulators started from now on.</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const STATUS = {
+  creating: { label: 'Creating', pulse: true },
+  stopped: { label: 'Stopped' },
+  booting: { label: 'Booting', pulse: true },
+  idle: { label: 'Idle' },
+  leased: { label: 'In use' },
+  stopping: { label: 'Stopping', pulse: true },
+  error: { label: 'Error' },
+};
+let state = null;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+function ago(ts) {
+  const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${String(s % 60).padStart(2, '0')}s`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+}
+
+function toast(message) {
+  const el = $('toast');
+  el.textContent = message;
+  el.classList.add('show');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+async function call(method, path, body) {
+  try {
+    const res = await fetch(path, {
+      method,
+      headers: body ? { 'content-type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+    return json;
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+function leaseLine(lease, e) {
+  if (!lease) return '';
+  let app = 'Waiting for Metro';
+  if (e.activity) app = e.activity;
+  else if (lease.opened) app = 'App opened';
+  else if (lease.app && e.status === 'leased') app = 'Opening app';
+  else if (e.status !== 'leased') app = 'Reserved';
+  return `<div class="row meta">→ <b>${esc(lease.project)}</b><span class="mono">Metro :${lease.metroPort}</span>· ${esc(app)}</div>`;
+}
+
+function card(e) {
+  const lease = state.leases.find((l) => l.id === e.leaseId);
+  const st = STATUS[e.status];
+  const running = ['booting', 'idle', 'leased'].includes(e.status);
+  const atCap = e.inPool && state.running >= state.config.maxRunning;
+  const tags = [
+    e.managed ? '<span class="tag">router</span>' : '',
+    running && !e.startedByRouter ? '<span class="tag">started externally</span>' : '',
+  ].join('');
+  const avd = encodeURIComponent(e.avd);
+
+  return `
+    <div class="card ${e.inPool ? '' : 'excluded'}" style="--status: var(--st-${e.status})">
+      <div class="row">
+        <span class="name">${esc(e.avd)}</span>${tags}
+        <span class="status ${st.pulse ? 'pulse' : ''}"><span class="dot"></span>${st.label}<span class="since" data-since="${e.statusSince}">${ago(e.statusSince)}</span></span>
+      </div>
+      ${e.serial ? `<div class="row meta mono">${esc(e.serial)}</div>` : ''}
+      ${leaseLine(lease, e)}
+      ${lease?.error ? `<div class="row err">${esc(lease.error)}</div>` : ''}
+      ${e.error ? `<div class="row err">${esc(e.error)}</div>` : ''}
+      ${e.activity && !lease ? `<div class="row meta">${esc(e.activity)}</div>` : ''}
+      <div class="actions">
+        ${e.status === 'stopped' || e.status === 'error'
+          ? `<button class="btn" data-act="start" data-avd="${avd}" ${atCap ? 'disabled title="At the running cap"' : ''}>Start</button>`
+          : ''}
+        ${running ? `<button class="btn" data-act="stop" data-avd="${avd}">Stop</button>` : ''}
+        ${lease && e.status === 'leased' && lease.app ? `<button class="btn" data-act="reopen" data-lease="${lease.id}">Reopen app</button>` : ''}
+        ${e.managed && (e.status === 'stopped' || e.status === 'error') ? `<button class="btn danger" data-act="delete" data-avd="${avd}">Delete</button>` : ''}
+        <label class="toggle" title="Pool emulators can be handed to Expo servers">
+          <input type="checkbox" data-act="pool" data-avd="${avd}" ${e.inPool ? 'checked' : ''}><span class="switch"></span>In pool
+        </label>
+      </div>
+    </div>`;
+}
+
+function render() {
+  const { config, emulators, leases, running, poolError } = state;
+  const cap = config.maxRunning;
+  const waiting = leases.filter((l) => l.status === 'waiting');
+  const inUse = emulators.filter((e) => e.status === 'leased').length;
+
+  $('count').innerHTML = `${running}<small> / ${cap}</small>`;
+  $('capValue').textContent = cap;
+  $('capDown').disabled = cap <= 1;
+  $('capUp').disabled = cap >= 16;
+  $('summary').textContent = `${emulators.length} AVDs · ${inUse} in use · ${waiting.length} queued`;
+
+  const active = emulators
+    .filter((e) => e.inPool && ['creating', 'booting', 'idle', 'leased', 'stopping'].includes(e.status))
+    .sort((a, b) => a.statusSince - b.statusSince);
+  const slotCount = Math.max(cap, active.length);
+  $('slots').innerHTML = Array.from({ length: slotCount }, (_, i) => {
+    const e = active[i];
+    return `<div class="slot ${i >= cap ? 'over' : ''}" title="${e ? esc(e.avd) : 'Free slot'}" style="${e ? `background: var(--st-${e.status})` : ''}"></div>`;
+  }).join('');
+
+  const errored = poolError || emulators.some((e) => e.status === 'error');
+  $('banner').innerHTML = errored
+    ? `<div class="banner"><span>${esc(poolError || 'An emulator failed. New emulators won\'t be created automatically until errors are cleared.')}</span><button class="btn" data-act="clear">Clear errors</button></div>`
+    : '';
+
+  const order = { leased: 0, booting: 1, creating: 1, idle: 2, stopping: 3, error: 4, stopped: 5 };
+  const sorted = [...emulators].sort((a, b) => (b.inPool - a.inPool) || (order[a.status] - order[b.status]) || a.avd.localeCompare(b.avd));
+  $('cards').innerHTML = sorted.length ? sorted.map(card).join('') : '<div class="panel empty">No AVDs found. Create one in Android Studio, or use “New emulator” once one exists.</div>';
+
+  $('queue').innerHTML = waiting.length
+    ? waiting.map((l) => `<div class="queue-item"><span><b>${esc(l.project)}</b> <span class="mono meta">:${l.metroPort}</span>${l.error ? `<div class="err">${esc(l.error)}</div>` : ''}</span><span class="since" data-since="${l.createdAt}">${ago(l.createdAt)}</span></div>`).join('')
+    : '<div class="empty">No Expo servers waiting.</div>';
+
+  // Don't clobber a setting mid-edit.
+  const template = $('template');
+  if (document.activeElement !== template) {
+    const names = emulators.map((e) => e.avd);
+    template.innerHTML = `<option value="">Automatic</option>` + names.map((n) => `<option ${n === config.templateAvd ? 'selected' : ''}>${esc(n)}</option>`).join('');
+  }
+  if (document.activeElement !== $('idle')) $('idle').value = config.idleShutdownMinutes;
+  $('headless').checked = config.headless;
+}
+
+document.addEventListener('click', async (event) => {
+  const el = event.target.closest('button[data-act]');
+  if (!el) return;
+  const avd = el.dataset.avd;
+  switch (el.dataset.act) {
+    case 'start': return call('POST', `/api/avds/${avd}/start`);
+    case 'stop': return call('POST', `/api/avds/${avd}/stop`);
+    case 'reopen': return call('POST', `/api/leases/${el.dataset.lease}/open`);
+    case 'clear': return call('POST', '/api/errors/clear');
+    case 'delete':
+      if (confirm(`Delete ${decodeURIComponent(avd)} and its disk images?`)) call('DELETE', `/api/avds/${avd}`);
+      return;
+  }
+});
+document.addEventListener('change', (event) => {
+  const el = event.target;
+  if (el.dataset.act === 'pool') call('PUT', `/api/avds/${el.dataset.avd}/pool`, { inPool: el.checked });
+});
+
+const setCap = (n) => call('PUT', '/api/config', { maxRunning: n });
+$('capDown').onclick = () => setCap(state.config.maxRunning - 1);
+$('capUp').onclick = () => setCap(state.config.maxRunning + 1);
+$('addBtn').onclick = () => call('POST', '/api/avds');
+$('template').onchange = (e) => call('PUT', '/api/config', { templateAvd: e.target.value || null });
+$('idle').onchange = (e) => call('PUT', '/api/config', { idleShutdownMinutes: Math.max(0, Number(e.target.value) || 0) });
+$('headless').onchange = (e) => call('PUT', '/api/config', { headless: e.target.checked });
+
+setInterval(() => {
+  for (const el of document.querySelectorAll('[data-since]')) el.textContent = ago(Number(el.dataset.since));
+}, 1000);
+
+function connect() {
+  const events = new EventSource('/api/events');
+  events.onopen = () => $('conn').classList.add('live');
+  events.onmessage = (msg) => { state = JSON.parse(msg.data); render(); };
+  events.onerror = () => { $('conn').classList.remove('live'); $('summary').textContent = 'Daemon unreachable — retrying…'; };
+}
+connect();
+</script>
+</body>
+</html>
