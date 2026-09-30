@@ -24,7 +24,10 @@ Other commands:
 
 ```sh
 emu-router ui               # dashboard at http://127.0.0.1:7777
-emu-router status
+emu-router status            # emulators, plus each session's port, pid and directory
+emu-router stop              # stop the session started in this directory (or a parent)
+emu-router stop --port 8083  # …or pick one by Metro port
+emu-router stop --emulator emulator-5560   # …or by emulator serial or AVD name
 emu-router cap 3            # at most 3 pool emulators running at once
 emu-router shutdown         # stops the daemon; emulators keep running
 ```
@@ -39,6 +42,7 @@ The daemon starts automatically on first use.
   - **Expo Go:** opens `exp://127.0.0.1:<port>`, installing the matching Expo Go first if it's missing.
   - **Dev client:** opens `exp+<slug>://expo-development-client/?url=…`. If the emulator doesn't have the dev build yet, the router installs the debug APK from your last `expo run:android` (`android/app/build/outputs/apk/debug`). If there's no APK, build one with `npx expo run:android`.
   - **Anything else:** set `EMU_ROUTER_URL` (with `{port}` as a placeholder).
+- **Process names**: each session renames itself `emu-router[<dir>:<port>]`, so `ps` tells sessions apart and a pattern like `pkill -f "emu-router start"` won't hit them. Prefer `emu-router stop`.
 - **Leases** end when Expo exits, or when the CLI stops heartbeating (30s, or right away if its process dies). The emulator stays warm for the next server unless idle shutdown is set.
 - **If an emulator dies** mid-session, its lease is requeued and the app reopens on the next emulator it gets.
 

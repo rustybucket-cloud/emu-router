@@ -157,6 +157,8 @@ export async function runStart(expoArgs: string[]) {
 
   const project = readJson(path.join(cwd, 'package.json'))?.name ?? path.basename(cwd);
   const lease = await api<Lease>('POST', '/api/leases', { project, cwd, pid: process.pid });
+  // A unique title keeps a pattern kill like `pkill -f "emu-router start"` from hitting other sessions.
+  process.title = `emu-router[${path.basename(cwd)}:${lease.metroPort}]`;
   log(`Metro on port ${lease.metroPort} · dashboard ${DAEMON_URL}`);
   log(`Open the app from the dashboard, not Expo's "a" key (that picks the first device).`);
 
