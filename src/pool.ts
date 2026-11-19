@@ -331,7 +331,8 @@ export class Pool extends EventEmitter {
         continue;
       }
       const serial = byAvd.get(avd);
-      const deadline = this.bootDeadlines.get(avd) ?? 0;
+      // A function so it sees a deadline set for an emulator started outside the router.
+      const deadline = () => this.bootDeadlines.get(avd) ?? 0;
 
       if (serial) {
         e.serial = serial;
@@ -342,10 +343,10 @@ export class Pool extends EventEmitter {
         }
         if (e.status === 'booting') {
           if (await android.isBooted(serial)) this.onBooted(e);
-          else if (Date.now() > deadline) this.fail(e, 'Emulator did not finish booting in time');
+          else if (Date.now() > deadline()) this.fail(e, 'Emulator did not finish booting in time');
         }
       } else if (e.status === 'booting') {
-        if (Date.now() > deadline) this.fail(e, `Emulator never appeared in adb; see ${android.logPath(avd)}`);
+        if (Date.now() > deadline()) this.fail(e, `Emulator never appeared in adb; see ${android.logPath(avd)}`);
       } else if (e.status === 'idle' || e.status === 'leased' || e.status === 'stopping') {
         this.onGone(e);
       }
