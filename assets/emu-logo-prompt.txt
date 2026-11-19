@@ -1,0 +1,9 @@
+Generated with the built-in image_gen tool.
+
+Use case: logo-brand
+Asset type: small mascot logo for the open-source emu-router developer tool.
+Primary request: a charming small pixel-art emu.
+Subject: one recognizable full-body emu in side profile, small head, short beak, long upright neck, shaggy rounded body, two sturdy long legs, tiny scruffy head feathers; friendly alert expression.
+Style: authentic minimal retro pixel sprite, coarse consistent square pixel grid, crisp hard stepped edges, flat limited natural charcoal and warm brown palette with light feather highlights. Simple iconic silhouette legible at 48–64 px. Centered with modest clear padding on a square canvas.
+Background: genuinely transparent alpha.
+Constraints: one emu only, no text, letters, border, badge, scenery, shadow, gradients, blur, antialiasing, or watermark. No accessories. Deliver a single polished logo.
