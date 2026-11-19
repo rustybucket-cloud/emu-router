@@ -153,6 +153,14 @@ export async function runStart(expoArgs: string[]) {
     throw new Error('emu-router assigns the Metro port itself; drop --port');
   }
   const cwd = process.cwd();
+  if (!fs.existsSync(path.join(cwd, 'package.json'))) {
+    const nested = fs
+      .readdirSync(cwd, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && d.name !== 'node_modules' && fs.existsSync(path.join(cwd, d.name, 'package.json')))
+      .map((d) => d.name);
+    const hint = nested.length ? `; try: cd ${nested.join(' or ')}` : '; run emu-router start from your Expo project root';
+    throw new Error(`No package.json in ${cwd}${hint}`);
+  }
   await ensureDaemon();
 
   const project = readJson(path.join(cwd, 'package.json'))?.name ?? path.basename(cwd);
