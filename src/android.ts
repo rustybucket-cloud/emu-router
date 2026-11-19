@@ -119,7 +119,7 @@ export async function hasPackage(serial: string, pkg: string): Promise<boolean> 
 }
 
 export async function installApk(serial: string, apkPath: string) {
-  await adb(['-s', serial, 'install', '-r', apkPath], 5 * 60_000);
+  await adb(['-s', serial, 'install', '-r', '-g', apkPath], 5 * 60_000);
 }
 
 export async function openUrl(serial: string, url: string) {
